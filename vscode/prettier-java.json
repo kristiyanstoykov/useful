@@ -1,0 +1,10 @@
+{
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java", // Assuming you are using the Red Hat Java extension for formatting
+    "editor.formatOnSave": true
+  },
+  "[plaintext]": {
+    "editor.wordWrap": "on", // This will wrap text to the width of the editor window
+    "editor.wordWrapColumn": 80 // Adjust this number to your preference or screen width for wrapping .txt files
+  }
+}
