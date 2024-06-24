@@ -1,0 +1,10 @@
+{
+  "[xml]": {
+    "editor.defaultFormatter": "redhat.vscode-xml", // You need Red Hat XML extension for formatting
+    "editor.formatOnSave": true
+  },
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features", // Using the built-in JSON extension for formatting
+    "editor.formatOnSave": true
+  }
+}
