@@ -1,0 +1,97 @@
+@echo off
+setlocal
+
+:: --- 1. CHECK FOR ADMIN RIGHTS ---
+net session >nul 2>&1
+if %errorLevel% == 0 (
+    echo Admin rights confirmed.
+) else (
+    echo.
+    echo ##########################################################
+    echo # ERROR: This script must be run as Administrator.       #
+    echo # Please right-click and select "Run as administrator".  #
+    echo ##########################################################
+    echo.
+    pause
+    exit
+)
+
+echo.
+echo ==========================================================
+echo      WINDOWS 11 NETWORK SHARING FIXER + BACKUP
+echo ==========================================================
+echo.
+
+:: --- 2. BACKUP CURRENT SETTINGS ---
+echo [STEP 1/5] Creating Backup of current Registry settings...
+echo Files will be saved to your Desktop.
+
+:: Create a timestamp for the filename
+set "timestamp=%date:~-4%-%date:~3,2%-%date:~0,2%_%time:~0,2%%time:~3,2%"
+set "timestamp=%timestamp: =0%"
+
+:: Export Lanman Workstation keys
+reg export "HKLM\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters" "%UserProfile%\Desktop\NetFix_Backup_Lanman_%timestamp%.reg" /y >nul 2>&1
+:: Export LSA keys
+reg export "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" "%UserProfile%\Desktop\NetFix_Backup_Lsa_%timestamp%.reg" /y >nul 2>&1
+
+echo Backup Complete! Look for "NetFix_Backup..." files on your Desktop.
+echo.
+
+:: --- 3. APPLY REGISTRY FIXES ---
+echo [STEP 2/5] Applying Registry Fixes (Guest Access & NTLM)...
+
+:: Enable Insecure Guest Logons
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters" /v AllowInsecureGuestAuth /t REG_DWORD /d 1 /f >nul
+
+:: Disable Security Signature Requirements (Fixes negotiation errors)
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters" /v EnableSecuritySignature /t REG_DWORD /d 0 /f >nul
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters" /v RequireSecuritySignature /t REG_DWORD /d 0 /f >nul
+
+:: Lower Authentication Level to allow older NTLM (Fixes Error 0x80004005)
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v LmCompatibilityLevel /t REG_DWORD /d 1 /f >nul
+
+echo Registry keys updated.
+echo.
+
+:: --- 4. ENABLE SERVICES (NETBIOS) ---
+echo [STEP 3/5] Starting TCP/IP NetBIOS Helper Service...
+
+:: Set service to Automatic startup
+sc config lmhosts start= auto >nul
+:: Start the service immediately
+net start lmhosts >nul 2>&1
+
+:: Force NetBIOS on all Network Adapters (using WMIC)
+echo Forcing NetBIOS on network adapters...
+wmic nicconfig where TcpipNetbiosOptions=0 call SetTcpipNetbios 1 >nul 2>&1
+wmic nicconfig where TcpipNetbiosOptions=2 call SetTcpipNetbios 1 >nul 2>&1
+
+echo Services configured.
+echo.
+
+:: --- 5. ENABLE SMB 1.0 ---
+echo [STEP 4/5] Checking SMB 1.0 Support...
+echo (This may take a moment to install if missing)...
+
+:: Enable the SMB1Protocol Feature
+dism /online /enable-feature /featurename:SMB1Protocol /all /norestart >nul
+
+echo SMB 1.0 checked/installed.
+echo.
+
+:: --- 6. FLUSH NETWORK ---
+echo [STEP 5/5] Flushing DNS and resetting connection...
+ipconfig /flushdns >nul
+nbtstat -R >nul
+
+echo.
+echo ==========================================================
+echo                 SUCCESS: ALL FIXES APPLIED
+echo ==========================================================
+echo.
+echo 1. Backup files are on your Desktop (.reg files).
+echo 2. YOU MUST RESTART YOUR COMPUTER NOW for changes to work.
+echo.
+set /p DUMMY=Press ENTER to restart now (or close window to restart later)...
+shutdown /r /t 0
